@@ -23,9 +23,34 @@ def seed_database():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
-    # Check if already seeded
-    if db.query(User).filter(User.email == "student@lms.edu").first():
-        print("Database already seeded with demo accounts.")
+    # Ensure all core accounts exist with valid credentials
+    core_users_data = [
+        {"email": "admin@lms.edu", "name": "Dr. Eleanor Vance", "role": "admin", "password": "admin123", "department": "Academic Administration", "identifier": "ADM-001"},
+        {"email": "faculty@lms.edu", "name": "Prof. Alan Turing", "role": "faculty", "password": "faculty123", "department": "Computer Science & Engineering", "identifier": "FAC-102"},
+        {"email": "ada@lms.edu", "name": "Dr. Ada Lovelace", "role": "faculty", "password": "password123", "department": "Data Science & AI", "identifier": "FAC-105"},
+        {"email": "student@lms.edu", "name": "Sowmya", "role": "student", "password": "student123", "department": "Computer Science & Engineering", "identifier": "CS-2024-042", "semester": "3rd Semester"},
+        {"email": "marcus@lms.edu", "name": "Marcus Vance", "role": "student", "password": "student123", "department": "Computer Science & Engineering", "identifier": "CS-2024-043"},
+        {"email": "aisha@lms.edu", "name": "Aisha Patel", "role": "student", "password": "student123", "department": "Computer Science & Engineering", "identifier": "CS-2024-044"},
+    ]
+
+    for cu in core_users_data:
+        existing = db.query(User).filter(User.email == cu["email"]).first()
+        if not existing:
+            new_u = User(
+                name=cu["name"],
+                email=cu["email"],
+                hashed_password=get_password_hash(cu["password"]),
+                role=cu["role"],
+                department=cu.get("department", "Computer Science & Engineering"),
+                identifier=cu.get("identifier"),
+                semester=cu.get("semester")
+            )
+            db.add(new_u)
+            db.commit()
+
+    # Check if courses/data already seeded
+    if db.query(Course).first():
+        print("Database already seeded with demo courses and academic data.")
         db.close()
         return
 

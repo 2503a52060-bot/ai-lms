@@ -5,29 +5,36 @@ from models import User
 from schemas import UserLogin, UserRegister, TokenResponse, UserOut, ProfileUpdate
 from auth import verify_password, get_password_hash, create_access_token, get_current_user
 
-router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+router = APIRouter(tags=["Authentication"])
 
 @router.post("/login", response_model=TokenResponse)
+@router.post("/login/", response_model=TokenResponse)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    email_clean = credentials.email.lower().strip()
+    email_clean = (credentials.email or "").lower().strip()
+    password_clean = credentials.password or ""
+
+    if not email_clean or not password_clean:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email and password are required"
+        )
+
     user = db.query(User).filter(User.email == email_clean).first()
 
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    if not user or not verify_password(password_clean, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Optional role confirmation if client specified role
-    if credentials.role and credentials.role.lower() != user.role.lower():
-        # Handle teacher / faculty synonym
-        if not (credentials.role.lower() in ["faculty", "teacher"] and user.role.lower() in ["faculty", "teacher"]):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Account exists but registered role is '{user.role}', not '{credentials.role}'"
-            )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is deactivated"
+        )
 
+    # Issue token containing the user's authentic verified database role
     token = create_access_token(data={"sub": str(user.id), "role": user.role, "email": user.email})
     return {
         "access_token": token,
@@ -36,6 +43,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     }
 
 @router.post("/register", response_model=TokenResponse)
+@router.post("/register/", response_model=TokenResponse)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
     email_clean = user_data.email.lower().strip()
     existing = db.query(User).filter(User.email == email_clean).first()
@@ -70,10 +78,12 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     }
 
 @router.get("/me", response_model=UserOut)
+@router.get("/me/", response_model=UserOut)
 def get_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
 @router.put("/me", response_model=UserOut)
+@router.put("/me/", response_model=UserOut)
 def update_profile(
     data: ProfileUpdate,
     current_user: User = Depends(get_current_user),

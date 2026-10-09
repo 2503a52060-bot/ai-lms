@@ -30,10 +30,11 @@ app = FastAPI(
     description="Enterprise REST APIs with integrated AI Analytics Engine."
 )
 
-# Enable CORS
+# Enable CORS for local development and all production cloud domains
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,8 +52,9 @@ async def add_security_and_cache_headers(request: Request, call_next):
 # Mount uploads directory for static file serving
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# Include Routers
-app.include_router(auth_router)
+# Include Routers - mount auth at both /api/auth and /auth for universal production endpoint compatibility
+app.include_router(auth_router, prefix="/api/auth")
+app.include_router(auth_router, prefix="/auth")
 app.include_router(student_router)
 app.include_router(faculty_router)
 app.include_router(admin_router)
@@ -75,7 +77,7 @@ async def serve_root():
 
 @app.api_route("/{full_path:path}", methods=["GET", "HEAD"])
 async def serve_spa(full_path: str):
-    if full_path.startswith("api/"):
+    if full_path.startswith("api/") or full_path.startswith("auth/"):
         raise HTTPException(status_code=404, detail="API endpoint not found")
     file_candidate = os.path.join(FRONTEND_DIST, full_path)
     if full_path and os.path.isfile(file_candidate):
@@ -86,5 +88,6 @@ async def serve_spa(full_path: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
 

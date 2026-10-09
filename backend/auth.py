@@ -9,16 +9,18 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User
 
-SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-lms-jwt-token-key-2026-secure")
+SECRET_KEY = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or "super-secret-lms-jwt-token-key-2026-secure"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not plain_password or not hashed_password:
+        return False
     try:
-        # Check bcrypt
-        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+        clean_hash = hashed_password.strip()
+        return bcrypt.checkpw(plain_password.encode("utf-8"), clean_hash.encode("utf-8"))
     except Exception:
         # Fallback to plain equality for backwards compatibility
         return plain_password == hashed_password
@@ -46,17 +48,28 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        sub = payload.get("sub")
+        if sub is None:
             raise credentials_exception
-    except jwt.PyJWTError:
+    except Exception:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    user = None
+    try:
+        user_id = int(sub)
+        user = db.query(User).filter(User.id == user_id).first()
+    except (ValueError, TypeError):
+        user = db.query(User).filter(User.email == str(sub).lower().strip()).first()
+
+    if user is None:
+        email_claim = payload.get("email")
+        if email_claim:
+            user = db.query(User).filter(User.email == str(email_claim).lower().strip()).first()
+
     if user is None:
         raise credentials_exception
     if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user account")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user account")
     return user
 
 def require_role(allowed_roles: List[str]):
