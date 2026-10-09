@@ -1,17 +1,4 @@
-import axios from 'axios';
-import {
-  MOCK_USERS,
-  MOCK_STUDENT_METRICS,
-  MOCK_PERFORMANCE_ANALYTICS,
-  MOCK_MARKS_DATA,
-  MOCK_ASSIGNMENTS,
-  MOCK_AI_FEEDBACK,
-  MOCK_ATTENDANCE,
-  MOCK_TEACHER_DATA,
-  MOCK_ADMIN_DATA
-} from './mockData';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://ai-lms-8spa.onrender.com';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
