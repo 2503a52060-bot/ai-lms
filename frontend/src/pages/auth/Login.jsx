@@ -25,10 +25,11 @@ const Login = () => {
     setLoading(false);
 
     if (result.success) {
-      const userRole = (result.user?.role || role)?.toLowerCase();
+      const authenticatedRole = (result.user?.role || role)?.toLowerCase();
+      const userRole = authenticatedRole === 'teacher' ? 'faculty' : authenticatedRole;
       if (userRole === 'admin') {
         navigate('/admin/dashboard', { replace: true });
-      } else if (userRole === 'faculty' || userRole === 'teacher') {
+      } else if (userRole === 'faculty') {
         navigate('/faculty/dashboard', { replace: true });
       } else {
         navigate('/student/dashboard', { replace: true });

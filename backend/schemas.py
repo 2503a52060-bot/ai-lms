@@ -15,6 +15,7 @@ class UserRegister(BaseModel):
     role: str = "student"
     department: Optional[str] = "Computer Science & Engineering"
     identifier: Optional[str] = None
+    admin_secret: Optional[str] = None
 
 class UserOut(BaseModel):
     id: int

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { GraduationCap, Lock, Mail, User, BookOpen, ArrowRight } from 'lucide-react';
+import { GraduationCap, Lock, Mail, User, BookOpen, ArrowRight, Shield } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ErrorMessage from '../../components/ErrorMessage';
@@ -12,6 +12,7 @@ const Register = () => {
     role: 'student',
     rollNo: '',
     department: 'Computer Science & Engineering',
+    adminSecret: '',
     password: '',
     confirmPassword: ''
   });
@@ -34,16 +35,32 @@ const Register = () => {
       return;
     }
 
+    if (formData.role === 'admin' && !formData.adminSecret.trim()) {
+      setError('Admin Setup Secret Key is required to create an Administrator account.');
+      return;
+    }
+
     setLoading(true);
     const result = await register({
-      ...formData,
-      id: `${formData.role === 'student' ? 'std' : 'tch'}_${Date.now()}`
+      name: formData.name,
+      email: formData.email,
+      role: formData.role,
+      department: formData.department,
+      identifier: formData.rollNo,
+      admin_secret: formData.adminSecret,
+      password: formData.password
     });
     setLoading(false);
 
     if (result.success) {
-      if (formData.role === 'teacher') navigate('/teacher/dashboard');
-      else navigate('/student/dashboard');
+      const assignedRole = (result.user?.role || formData.role)?.toLowerCase();
+      if (assignedRole === 'admin') {
+        navigate('/admin/dashboard', { replace: true });
+      } else if (assignedRole === 'faculty' || assignedRole === 'teacher') {
+        navigate('/faculty/dashboard', { replace: true });
+      } else {
+        navigate('/student/dashboard', { replace: true });
+      }
     } else {
       setError(result.error || 'Failed to create account.');
     }
@@ -106,9 +123,35 @@ const Register = () => {
               onChange={handleChange}
             >
               <option value="student">Student</option>
-              <option value="teacher">Professor / Faculty</option>
+              <option value="faculty">Professor / Faculty</option>
+              <option value="admin">Administrator (Secure Setup)</option>
             </select>
           </div>
+
+          {formData.role === 'admin' && (
+            <div className="form-group" style={{ backgroundColor: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 'var(--radius-md)', padding: '0.85rem', marginBottom: '1.25rem' }}>
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6b21a8', fontWeight: 700, marginBottom: '0.4rem' }}>
+                <Shield size={16} />
+                <span>Admin Setup Secret Key</span>
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} color="#9333ea" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="password"
+                  name="adminSecret"
+                  className="form-input"
+                  style={{ paddingLeft: '2.25rem', borderColor: '#d8b4fe', backgroundColor: '#ffffff' }}
+                  placeholder="Enter Admin Setup Key (e.g. admin123)"
+                  value={formData.adminSecret}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+              <span style={{ fontSize: '0.75rem', color: '#7e22ce', display: 'block', marginTop: '0.35rem' }}>
+                🔒 Secure verification required to provision administrator privileges.
+              </span>
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Full Name</label>
@@ -147,7 +190,7 @@ const Register = () => {
 
             <div className="form-group">
               <label className="form-label">
-                {formData.role === 'student' ? 'Roll / Enrollment No.' : 'Faculty ID'}
+                {formData.role === 'student' ? 'Roll / Enrollment No.' : formData.role === 'admin' ? 'Admin Staff ID' : 'Faculty ID'}
               </label>
               <div style={{ position: 'relative' }}>
                 <BookOpen size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />

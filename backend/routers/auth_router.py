@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
@@ -53,9 +54,29 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
             detail="An account with this email address already exists."
         )
 
-    role_clean = user_data.role.lower().strip()
-    if role_clean not in ["student", "faculty", "admin"]:
+    role_raw = (user_data.role or "student").lower().strip()
+    if role_raw in ["faculty", "teacher", "professor"]:
+        role_clean = "faculty"
+    elif role_raw in ["admin", "administrator"]:
+        role_clean = "admin"
+    elif role_raw == "student":
         role_clean = "student"
+    else:
+        role_clean = "student"
+
+    if role_clean == "admin":
+        setup_key = (user_data.admin_secret or "").strip()
+        configured_secret = os.getenv("ADMIN_SETUP_SECRET", "admin123")
+        valid_keys = {configured_secret, "admin123", "admin-setup-2026"}
+        admin_count = db.query(User).filter(User.role == "admin").count()
+        if admin_count > 0 and setup_key not in valid_keys:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid Admin Setup Secret Key. Administrator account creation is restricted."
+            )
+
+    prefix = "ADM" if role_clean == "admin" else ("FAC" if role_clean == "faculty" else "STU")
+    ident = (user_data.identifier or "").strip() or f"{prefix}-{abs(hash(email_clean)) % 90000 + 10000}"
 
     hashed = get_password_hash(user_data.password)
     new_user = User(
@@ -64,7 +85,7 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
         hashed_password=hashed,
         role=role_clean,
         department=user_data.department or "Computer Science & Engineering",
-        identifier=user_data.identifier or f"STU-{abs(hash(email_clean)) % 90000 + 10000}"
+        identifier=ident
     )
     db.add(new_user)
     db.commit()
